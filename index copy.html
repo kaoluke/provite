@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>泡泡食光訂單管理</title>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background: #fef6e4;
+      padding: 2rem;
+      text-align: center;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    table {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+      border-collapse: collapse;
+      background: white;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 0.5rem;
+      font-size: 0.9rem;
+    }
+    th {
+      background-color: #ff9f1c;
+      color: white;
+    }
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+  </style>
+</head>
+<body>
+  <h1>泡泡食光 - 訂單管理介面</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>姓名</th>
+        <th>主食</th>
+        <th>副食</th>
+        <th>飲料</th>
+        <th>總金額</th>
+        <th>時間</th>
+      </tr>
+    </thead>
+    <tbody id="orderTable">
+    </tbody>
+  </table>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBWfzmulutWwX9XZd__ZJJDH9ajq1rVYVM",
+      authDomain: "times-a3946.firebaseapp.com",
+      databaseURL: "https://times-a3946-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "times-a3946",
+      storageBucket: "times-a3946.appspot.com",
+      messagingSenderId: "168824083063",
+      appId: "1:168824083063:web:123a72d9aa61ed62d5ec72"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    db.ref("orders").on("value", snapshot => {
+      const orders = snapshot.val();
+      const tbody = document.getElementById("orderTable");
+      tbody.innerHTML = "";
+      for (let id in orders) {
+        const o = orders[id];
+        const row = `
+          <tr>
+            <td>${o.name}</td>
+            <td>${o.main} × ${o.mainQty}</td>
+            <td>${o.side} × ${o.sideQty}</td>
+            <td>${o.drink} × ${o.drinkQty}</td>
+            <td>${o.total} 元</td>
+            <td>${new Date(o.time).toLocaleString()}</td>
+          </tr>`;
+        tbody.innerHTML += row;
+      }
+    });
+  </script>
+</body>
+</html>
