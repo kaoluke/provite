@@ -1,78 +1,55 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>泡泡食光 - 訂單管理</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>泡泡食光 - 管理端</title>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC&display=swap" rel="stylesheet">
   <style>
     body {
       font-family: 'Noto Sans TC', sans-serif;
-      background: #fff7ed;
+      background-color: #fffaf2;
+      padding: 1rem;
       margin: 0;
-      display: flex;
     }
-    .sidebar {
-      width: 220px;
-      background: #ffdaab;
-      padding: 1rem;
-      box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-    }
-    .sidebar h2 {
-      font-size: 1.2rem;
-    }
-    .sidebar p {
-      font-size: 0.9rem;
-      margin: 0.5rem 0;
-    }
-    .main {
-      flex: 1;
-      padding: 1rem;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 1rem;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 0.5rem;
+    h1 {
       text-align: center;
+      color: #333;
     }
-    th {
-      background: #ffe5b4;
+    #discount-info {
+      background-color: #ffefc5;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+    }
+    #orderList {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .order-item {
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      margin: 1rem 0;
+      padding: 1rem;
+    }
+    .order-item ul {
+      padding-left: 1.2rem;
     }
   </style>
 </head>
 <body>
-  <div class="sidebar">
-    <h2>折扣規則</h2>
-    <p>✔️ 同時訂購主食、副食、飲料可折 10 元</p>
-    <p>✔️ 2025/06/04 前訂購再折 10 元</p>
+  <h1>泡泡食光 - 訂單管理</h1>
+  <div id="discount-info">
+    <p>✅ 優惠條件：</p>
+    <ul>
+      <li>三樣皆購買折扣 10 元</li>
+      <li>預購期限前（2025/06/04）再折 10 元</li>
+    </ul>
   </div>
-
-  <div class="main">
-    <h1>泡泡食光 - 訂單管理</h1>
-    <table id="ordersTable">
-      <thead>
-        <tr>
-          <th>時間</th>
-          <th>姓名</th>
-          <th>主食</th>
-          <th>數量</th>
-          <th>副食</th>
-          <th>數量</th>
-          <th>飲料</th>
-          <th>數量</th>
-          <th>原價</th>
-          <th>折扣後</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
+  <div id="orderList">載入中...</div>
 
   <script>
     const firebaseConfig = {
@@ -87,44 +64,32 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const prices = {
-      main: 50,
-      side: 20,
-      drink: 40
-    };
+    const prices = { main: 50, side: 20, drink: 40 };
 
-    function applyDiscount(data, originalTotal) {
-      let discount = 0;
-      const hasAll = data.mainQty > 0 && data.sideQty > 0 && data.drinkQty > 0;
-      const time = new Date(data.time);
-      const deadline = new Date("2025-06-04T23:59:59");
-      if (hasAll) discount += 10;
-      if (time < deadline) discount += 10;
-      return originalTotal - discount;
-    }
+    const orderList = document.getElementById("orderList");
+    orderList.innerHTML = "";
 
-    db.ref("orders").once("value", snapshot => {
-      const tbody = document.querySelector("#ordersTable tbody");
-      snapshot.forEach(orderSnap => {
-        const data = orderSnap.val();
-        const originalTotal = (data.mainQty * prices.main) + (data.sideQty * prices.side) + (data.drinkQty * prices.drink);
-        const finalTotal = applyDiscount(data, originalTotal);
+    db.ref("orders").on("child_added", snapshot => {
+      const data = snapshot.val();
 
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${new Date(data.time).toLocaleString()}</td>
-          <td>${data.name}</td>
-          <td>${data.main}</td>
-          <td>${data.mainQty}</td>
-          <td>${data.side}</td>
-          <td>${data.sideQty}</td>
-          <td>${data.drink}</td>
-          <td>${data.drinkQty}</td>
-          <td>${originalTotal}</td>
-          <td>${finalTotal}</td>
-        `;
-        tbody.appendChild(row);
-      });
+      const originalPrice =
+        data.mainQty * prices.main +
+        data.sideQty * prices.side +
+        data.drinkQty * prices.drink;
+
+      const item = document.createElement("div");
+      item.classList.add("order-item");
+      item.innerHTML = `
+        <p><strong>${data.name}</strong> - ${new Date(data.time).toLocaleString()}</p>
+        <ul>
+          <li>主食：${data.main} x ${data.mainQty}</li>
+          <li>副食：${data.side} x ${data.sideQty}</li>
+          <li>飲料：${data.drink} x ${data.drinkQty}</li>
+        </ul>
+        <p>原價：${originalPrice} 元</p>
+        <p>折扣後價格：${data.total} 元</p>
+      `;
+      orderList.prepend(item);
     });
   </script>
 </body>
