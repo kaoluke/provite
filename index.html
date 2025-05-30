@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>泡泡食光 - 管理介面</title>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 2rem;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .section {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .section h2 {
+      margin-top: 0;
+      font-size: 1.4rem;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 0.5rem;
+    }
+    .stock-item {
+      margin-bottom: 1rem;
+    }
+    .stock-item label {
+      display: inline-block;
+      width: 150px;
+      font-weight: bold;
+    }
+    .stock-item input {
+      width: 60px;
+      padding: 4px;
+      text-align: center;
+    }
+    .stock-item button {
+      padding: 4px 10px;
+      margin-left: 10px;
+      border: none;
+      background-color: #4caf50;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .order {
+      border-bottom: 1px solid #ddd;
+      padding: 1rem 0;
+    }
+    .order:last-child {
+      border-bottom: none;
+    }
+    s {
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>泡泡食光 - 管理介面</h1>
+
+  <div class="section" id="stockSection">
+    <h2>📦 原料庫存管理</h2>
+    <div id="stockContainer"></div>
+  </div>
+
+  <div class="section" id="ordersSection">
+    <h2>📋 訂單紀錄</h2>
+    <div id="ordersContainer"></div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBWfzmulutWwX9XZd__ZJJDH9ajq1rVYVM",
+      authDomain: "times-a3946.firebaseapp.com",
+      databaseURL: "https://times-a3946-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "times-a3946",
+      storageBucket: "times-a3946.appspot.com",
+      messagingSenderId: "168824083063",
+      appId: "1:168824083063:web:123a72d9aa61ed62d5ec72"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    function listenToStock() {
+      db.ref("stock").on("value", snapshot => {
+        const data = snapshot.val();
+        const container = document.getElementById("stockContainer");
+        container.innerHTML = "";
+
+        for (const key in data) {
+          const itemDiv = document.createElement("div");
+          itemDiv.className = "stock-item";
+          itemDiv.innerHTML = `
+            <label>${key}：</label>
+            <input type="number" id="stock_${key}" value="${data[key]}" min="0" />
+            <button onclick="updateStock('${key}')">更新</button>
+          `;
+          container.appendChild(itemDiv);
+        }
+      });
+    }
+
+    function updateStock(key) {
+      const val = parseInt(document.getElementById(`stock_${key}`).value) || 0;
+      db.ref("stock/" + key).set(val, err => {
+        if (!err) {
+          alert(`${key} 已更新為 ${val}`);
+        } else {
+          alert("更新失敗！");
+        }
+      });
+    }
+
+    function listenToOrders() {
+      db.ref("orders").on("value", snapshot => {
+        const container = document.getElementById("ordersContainer");
+        container.innerHTML = "";
+
+        snapshot.forEach(child => {
+          const data = child.val();
+          const fried = data.main_fried || 0;
+          const tofu = data.side_tofu || 0;
+          const hotdog = data.side_hotdog || 0;
+          const sprite = data.drink_sprite || 0;
+          const coke = data.drink_coke || 0;
+
+          const original = (fried + tofu + hotdog + sprite + coke) * 40;
+
+          let discount = 0;
+          if (fried > 0 && (tofu + hotdog) > 0 && (sprite + coke) > 0) {
+            discount += 10;
+          }
+
+          const orderTime = new Date(data.time);
+          const deadline = new Date("2025-06-04T00:00:00");
+          if (orderTime < deadline) {
+            discount += 10;
+          }
+
+          const finalTotal = original - discount;
+
+          const orderDiv = document.createElement("div");
+          orderDiv.className = "order";
+
+          orderDiv.innerHTML = `
+            🧑 姓名：${data.name || "未填寫"}<br/>
+            🕒 時間：${orderTime.toLocaleString("zh-TW")}<br/>
+            🍚 主食：炒米粉 × ${fried}<br/>
+            🥘 副食：豆干 × ${tofu}、熱狗 × ${hotdog}<br/>
+            🥤 飲料：加檸雪碧 × ${sprite}、梅子可樂 × ${coke}<br/>
+            💰 原價：<s>${original} 元</s>，折扣後：${finalTotal} 元
+          `;
+          container.appendChild(orderDiv);
+        });
+      });
+    }
+
+    window.onload = () => {
+      listenToStock();
+      listenToOrders();
+    };
+  </script>
+
+</body>
+</html>
