@@ -1,59 +1,78 @@
-
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>訂單管理介面</title>
+  <title>泡泡食光 - 訂單管理</title>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC&display=swap" rel="stylesheet">
   <style>
     body {
-      background: #f7f7f7;
       font-family: 'Noto Sans TC', sans-serif;
-      padding: 2rem;
+      background: #fff7ed;
+      margin: 0;
+      display: flex;
     }
-    h1 {
-      text-align: center;
-      margin-bottom: 2rem;
+    .sidebar {
+      width: 220px;
+      background: #ffdaab;
+      padding: 1rem;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    }
+    .sidebar h2 {
+      font-size: 1.2rem;
+    }
+    .sidebar p {
+      font-size: 0.9rem;
+      margin: 0.5rem 0;
+    }
+    .main {
+      flex: 1;
+      padding: 1rem;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      background: white;
-      border-radius: 8px;
-      overflow: hidden;
+      margin-top: 1rem;
     }
     th, td {
-      padding: 1rem;
-      border-bottom: 1px solid #ddd;
+      border: 1px solid #ccc;
+      padding: 0.5rem;
       text-align: center;
     }
     th {
-      background-color: #ff9f1c;
-      color: white;
-    }
-    tr:hover {
-      background-color: #ffe0b3;
+      background: #ffe5b4;
     }
   </style>
 </head>
 <body>
-  <h1>泡泡食光 - 訂單管理</h1>
-  <table id="ordersTable">
-    <thead>
-      <tr>
-        <th>姓名</th>
-        <th>主食/數量</th>
-        <th>副食/數量</th>
-        <th>飲料/數量</th>
-        <th>金額</th>
-        <th>時間</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <div class="sidebar">
+    <h2>折扣規則</h2>
+    <p>✔️ 同時訂購主食、副食、飲料可折 10 元</p>
+    <p>✔️ 2025/06/04 前訂購再折 10 元</p>
+  </div>
+
+  <div class="main">
+    <h1>泡泡食光 - 訂單管理</h1>
+    <table id="ordersTable">
+      <thead>
+        <tr>
+          <th>時間</th>
+          <th>姓名</th>
+          <th>主食</th>
+          <th>數量</th>
+          <th>副食</th>
+          <th>數量</th>
+          <th>飲料</th>
+          <th>數量</th>
+          <th>原價</th>
+          <th>折扣後</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
   <script>
     const firebaseConfig = {
@@ -65,28 +84,47 @@
       messagingSenderId: "168824083063",
       appId: "1:168824083063:web:123a72d9aa61ed62d5ec72"
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const tbody = document.querySelector("#ordersTable tbody");
+    const prices = {
+      main: 50,
+      side: 20,
+      drink: 40
+    };
 
-    db.ref("orders").on("value", snapshot => {
-      tbody.innerHTML = "";
-      const orders = snapshot.val();
-      for (let key in orders) {
-        const o = orders[key];
+    function applyDiscount(data, originalTotal) {
+      let discount = 0;
+      const hasAll = data.mainQty > 0 && data.sideQty > 0 && data.drinkQty > 0;
+      const time = new Date(data.time);
+      const deadline = new Date("2025-06-04T23:59:59");
+      if (hasAll) discount += 10;
+      if (time < deadline) discount += 10;
+      return originalTotal - discount;
+    }
+
+    db.ref("orders").once("value", snapshot => {
+      const tbody = document.querySelector("#ordersTable tbody");
+      snapshot.forEach(orderSnap => {
+        const data = orderSnap.val();
+        const originalTotal = (data.mainQty * prices.main) + (data.sideQty * prices.side) + (data.drinkQty * prices.drink);
+        const finalTotal = applyDiscount(data, originalTotal);
+
         const row = document.createElement("tr");
         row.innerHTML = `
-          <td>${o.name}</td>
-          <td>${o.main} / ${o.mainQty}</td>
-          <td>${o.side} / ${o.sideQty}</td>
-          <td>${o.drink} / ${o.drinkQty}</td>
-          <td>${o.total} 元</td>
-          <td>${new Date(o.time).toLocaleString()}</td>
+          <td>${new Date(data.time).toLocaleString()}</td>
+          <td>${data.name}</td>
+          <td>${data.main}</td>
+          <td>${data.mainQty}</td>
+          <td>${data.side}</td>
+          <td>${data.sideQty}</td>
+          <td>${data.drink}</td>
+          <td>${data.drinkQty}</td>
+          <td>${originalTotal}</td>
+          <td>${finalTotal}</td>
         `;
         tbody.appendChild(row);
-      }
+      });
     });
   </script>
 </body>
