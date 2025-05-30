@@ -1,0 +1,93 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>訂單管理介面</title>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: #f7f7f7;
+      font-family: 'Noto Sans TC', sans-serif;
+      padding: 2rem;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 1rem;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
+    }
+    th {
+      background-color: #ff9f1c;
+      color: white;
+    }
+    tr:hover {
+      background-color: #ffe0b3;
+    }
+  </style>
+</head>
+<body>
+  <h1>泡泡食光 - 訂單管理</h1>
+  <table id="ordersTable">
+    <thead>
+      <tr>
+        <th>姓名</th>
+        <th>主食/數量</th>
+        <th>副食/數量</th>
+        <th>飲料/數量</th>
+        <th>金額</th>
+        <th>時間</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBWfzmulutWwX9XZd__ZJJDH9ajq1rVYVM",
+      authDomain: "times-a3946.firebaseapp.com",
+      databaseURL: "https://times-a3946-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "times-a3946",
+      storageBucket: "times-a3946.appspot.com",
+      messagingSenderId: "168824083063",
+      appId: "1:168824083063:web:123a72d9aa61ed62d5ec72"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const tbody = document.querySelector("#ordersTable tbody");
+
+    db.ref("orders").on("value", snapshot => {
+      tbody.innerHTML = "";
+      const orders = snapshot.val();
+      for (let key in orders) {
+        const o = orders[key];
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${o.name}</td>
+          <td>${o.main} / ${o.mainQty}</td>
+          <td>${o.side} / ${o.sideQty}</td>
+          <td>${o.drink} / ${o.drinkQty}</td>
+          <td>${o.total} 元</td>
+          <td>${new Date(o.time).toLocaleString()}</td>
+        `;
+        tbody.appendChild(row);
+      }
+    });
+  </script>
+</body>
+</html>
