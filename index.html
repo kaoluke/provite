@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -58,8 +59,8 @@
     .order:last-child {
       border-bottom: none;
     }
-    s {
-      color: #999;
+    del {
+      color: #888;
     }
   </style>
 </head>
@@ -121,6 +122,33 @@
       });
     }
 
+    function calculatePrice(order) {
+      const priceList = {
+        main_fried: 50,
+        side_tofu: 20,
+        side_hotdog: 20,
+        drink_sprite: 40,
+        drink_coke: 40
+      };
+
+      let originalPrice = 0;
+      for (const key in priceList) {
+        originalPrice += (parseInt(order[key]) || 0) * priceList[key];
+      }
+
+      let discount = 0;
+      const hasMain = (order.main_fried || 0) > 0;
+      const hasSide = (order.side_tofu || 0) + (order.side_hotdog || 0) > 0;
+      const hasDrink = (order.drink_sprite || 0) + (order.drink_coke || 0) > 0;
+      const orderTime = new Date(order.time);
+      const earlyBirdDeadline = new Date("2025-06-04T00:00:00");
+
+      if (hasMain && hasSide && hasDrink) discount += 10;
+      if (orderTime < earlyBirdDeadline) discount += 10;
+
+      return { originalPrice, finalPrice: originalPrice - discount };
+    }
+
     function listenToOrders() {
       db.ref("orders").on("value", snapshot => {
         const container = document.getElementById("ordersContainer");
@@ -128,37 +156,18 @@
 
         snapshot.forEach(child => {
           const data = child.val();
-          const fried = data.main_fried || 0;
-          const tofu = data.side_tofu || 0;
-          const hotdog = data.side_hotdog || 0;
-          const sprite = data.drink_sprite || 0;
-          const coke = data.drink_coke || 0;
-
-          const original = (fried + tofu + hotdog + sprite + coke) * 40;
-
-          let discount = 0;
-          if (fried > 0 && (tofu + hotdog) > 0 && (sprite + coke) > 0) {
-            discount += 10;
-          }
-
-          const orderTime = new Date(data.time);
-          const deadline = new Date("2025-06-04T00:00:00");
-          if (orderTime < deadline) {
-            discount += 10;
-          }
-
-          const finalTotal = original - discount;
+          const prices = calculatePrice(data);
+          const time = new Date(data.time).toLocaleString("zh-TW");
 
           const orderDiv = document.createElement("div");
           orderDiv.className = "order";
-
           orderDiv.innerHTML = `
             🧑 姓名：${data.name || "未填寫"}<br/>
-            🕒 時間：${orderTime.toLocaleString("zh-TW")}<br/>
-            🍚 主食：炒米粉 × ${fried}<br/>
-            🥘 副食：豆干 × ${tofu}、熱狗 × ${hotdog}<br/>
-            🥤 飲料：加檸雪碧 × ${sprite}、梅子可樂 × ${coke}<br/>
-            💰 原價：<s>${original} 元</s>，折扣後：${finalTotal} 元
+            🕒 時間：${time}<br/>
+            🍚 主食：炒米粉 × ${data.main_fried || 0}<br/>
+            🥘 副食：豆干 × ${data.side_tofu || 0}、熱狗 × ${data.side_hotdog || 0}<br/>
+            🥤 飲料：加檸雪碧 × ${data.drink_sprite || 0}、梅子可樂 × ${data.drink_coke || 0}<br/>
+            💰 原價：<del>${prices.originalPrice} 元</del> → ${prices.finalPrice} 元
           `;
           container.appendChild(orderDiv);
         });
