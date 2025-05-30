@@ -2,78 +2,55 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>泡泡食光 - 管理介面</title>
+  <title>泡泡食光 - 管理端</title>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC&display=swap" rel="stylesheet">
   <style>
     body {
       font-family: 'Noto Sans TC', sans-serif;
-      margin: 0;
-      display: flex;
-      height: 100vh;
+      background: #fff8f0;
+      padding: 2rem;
     }
-    .sidebar {
-      width: 260px;
-      background-color: #fffbf0;
-      padding: 1rem;
-      border-right: 1px solid #ddd;
-    }
-    .sidebar h2 {
-      font-size: 1.2rem;
-      margin-bottom: 1rem;
-      color: #444;
-    }
-    .main {
-      flex: 1;
-      padding: 1rem;
-      overflow-y: auto;
+    h1 {
+      color: #ff6f00;
     }
     table {
       width: 100%;
       border-collapse: collapse;
+      margin-top: 2rem;
     }
     th, td {
-      padding: 0.5rem;
       border: 1px solid #ccc;
+      padding: 0.5rem;
       text-align: center;
     }
     th {
-      background-color: #f2f2f2;
+      background-color: #ffcc80;
     }
-    .discount {
-      color: #e44;
-      font-weight: bold;
+    tr:nth-child(even) {
+      background-color: #fff3e0;
     }
   </style>
 </head>
 <body>
-  <div class="sidebar">
-    <h2>優惠說明</h2>
-    <ul>
-      <li>點滿主食、副食與飲料折扣 10 元</li>
-      <li>6/4 前下單再折 10 元</li>
-    </ul>
-  </div>
-  <div class="main">
-    <h1>即時訂單紀錄</h1>
-    <table>
-      <thead>
-        <tr>
-          <th>姓名</th>
-          <th>主食</th>
-          <th>副食</th>
-          <th>飲料</th>
-          <th>原價</th>
-          <th>折扣後</th>
-          <th>時間</th>
-        </tr>
-      </thead>
-      <tbody id="orderTable"></tbody>
-    </table>
-  </div>
+  <h1>泡泡食光 - 訂單管理介面</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>姓名</th>
+        <th>主食</th><th>數量</th>
+        <th>副食</th><th>數量</th>
+        <th>飲料</th><th>數量</th>
+        <th>折扣前</th>
+        <th>折扣後</th>
+        <th>時間</th>
+      </tr>
+    </thead>
+    <tbody id="orderTableBody"></tbody>
+  </table>
+
   <script>
+    // Firebase 設定
     const firebaseConfig = {
       apiKey: "AIzaSyBWfzmulutWwX9XZd__ZJJDH9ajq1rVYVM",
       authDomain: "times-a3946.firebaseapp.com",
@@ -86,44 +63,43 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const prices = {
-      main: 50,
-      side: 20,
-      drink: 40
-    };
+    const prices = { main: 50, side: 20, drink: 40 };
 
-    function calculateDiscountedTotal(order) {
-      const mainQty = parseInt(order.mainQty) || 0;
-      const sideQty = parseInt(order.sideQty) || 0;
-      const drinkQty = parseInt(order.drinkQty) || 0;
+    function calculateDiscountedTotal(data) {
+      const mainQty = data.mainQty || 0;
+      const sideQty = data.sideQty || 0;
+      const drinkQty = data.drinkQty || 0;
+
       let total = mainQty * prices.main + sideQty * prices.side + drinkQty * prices.drink;
+      let discountedTotal = total;
 
-      if (mainQty > 0 && sideQty > 0 && drinkQty > 0) total -= 10;
-      const now = new Date(order.time);
+      const orderDate = new Date(data.time);
       const deadline = new Date("2025-06-04T23:59:59");
-      if (now < deadline) total -= 10;
 
-      return total;
+      if (orderDate <= deadline) discountedTotal -= 10;
+      if (mainQty > 0 && sideQty > 0 && drinkQty > 0) discountedTotal -= 10;
+
+      if (discountedTotal < 0) discountedTotal = 0;
+
+      return { total, discountedTotal };
     }
 
     db.ref("orders").on("value", snapshot => {
-      const table = document.getElementById("orderTable");
+      const table = document.getElementById("orderTableBody");
       table.innerHTML = "";
       snapshot.forEach(child => {
-        const order = child.val();
+        const data = child.val();
+        const { total, discountedTotal } = calculateDiscountedTotal(data);
+
         const row = document.createElement("tr");
-
-        const originalTotal = order.total;
-        const discountedTotal = calculateDiscountedTotal(order);
-
         row.innerHTML = `
-          <td>${order.name}</td>
-          <td>${order.main} × ${order.mainQty}</td>
-          <td>${order.side} × ${order.sideQty}</td>
-          <td>${order.drink} × ${order.drinkQty}</td>
-          <td>${originalTotal}</td>
-          <td class="discount">${discountedTotal}</td>
-          <td>${new Date(order.time).toLocaleString()}</td>
+          <td>${data.name || ""}</td>
+          <td>${data.main || ""}</td><td>${data.mainQty || 0}</td>
+          <td>${data.side || ""}</td><td>${data.sideQty || 0}</td>
+          <td>${data.drink || ""}</td><td>${data.drinkQty || 0}</td>
+          <td>${total} 元</td>
+          <td>${discountedTotal} 元</td>
+          <td>${new Date(data.time).toLocaleString()}</td>
         `;
         table.appendChild(row);
       });
