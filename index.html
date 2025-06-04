@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>泡泡食光 - 管理介面</title>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
       font-family: 'Noto Sans TC', sans-serif;
@@ -19,15 +20,18 @@
     .section {
       background: #fff;
       border-radius: 12px;
-      padding: 1.5rem;
+      padding: 1rem;
       margin-bottom: 2rem;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
-    .section h2 {
-      margin-top: 0;
-      font-size: 1.4rem;
-      border-bottom: 2px solid #eee;
-      padding-bottom: 0.5rem;
+    .flex-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .col {
+      flex: 1;
+      min-width: 300px;
     }
     .stock-item {
       margin-bottom: 1rem;
@@ -61,20 +65,63 @@
     del {
       color: #888;
     }
+    .tags {
+      margin-top: 0.5rem;
+    }
+    .tags input {
+      padding: 2px 6px;
+      margin-right: 6px;
+    }
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .summary-table th, .summary-table td {
+      border: 1px solid #ccc;
+      padding: 6px 10px;
+      text-align: center;
+    }
+    canvas {
+      max-width: 100%;
+      height: 300px !important;
+    }
   </style>
 </head>
 <body>
 
   <h1>泡泡食光 - 管理介面</h1>
 
-  <div class="section" id="stockSection">
-    <h2>📦 原料庫存管理</h2>
-    <div id="stockContainer"></div>
+  <div class="section" id="tagSummarySection">
+    <h2>🏷️ 標籤總整理</h2>
+    <div id="tagSummary"></div>
   </div>
 
-  <div class="section" id="ordersSection">
-    <h2>📋 訂單紀錄</h2>
-    <div id="ordersContainer"></div>
+  <div class="flex-row">
+    <div class="col section">
+      <h2>📦 原料庫存管理</h2>
+      <div id="stockContainer"></div>
+    </div>
+    <div class="col section">
+      <h2>🧮 品項總整理</h2>
+      <div id="summaryContainer"></div>
+      <h3>💰 總金額與數量</h3>
+      <div id="totalSummary"></div>
+    </div>
+    <div class="col section">
+      <h2>📋 訂單紀錄</h2>
+      <div id="ordersContainer"></div>
+    </div>
+  </div>
+
+  <div class="flex-row">
+    <div class="col section">
+      <h2>📊 銷量統計 - 柱狀圖</h2>
+      <canvas id="barChart"></canvas>
+    </div>
+    <div class="col section">
+      <h2>🍰 銷量統計 - 圓餅圖</h2>
+      <canvas id="pieChart"></canvas>
+    </div>
   </div>
 
   <script>
@@ -87,93 +134,152 @@
       messagingSenderId: "168824083063",
       appId: "1:168824083063:web:123a72d9aa61ed62d5ec72"
     };
-
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+
+    const priceList = {
+      main_fried: 50,
+      side_tofu: 20,
+      side_hotdog: 20,
+      drink_sprite: 40,
+      drink_coke: 40
+    };
+
+    function updateStock(key) {
+      const val = parseInt(document.getElementById(`stock_${key}`).value) || 0;
+      db.ref("stock/" + key).set(val);
+    }
 
     function listenToStock() {
       db.ref("stock").on("value", snapshot => {
         const data = snapshot.val();
         const container = document.getElementById("stockContainer");
         container.innerHTML = "";
-
         for (const key in data) {
-          const itemDiv = document.createElement("div");
-          itemDiv.className = "stock-item";
-          itemDiv.innerHTML = `
-            <label>${key}：</label>
-            <input type="number" id="stock_${key}" value="${data[key]}" min="0" />
-            <button onclick="updateStock('${key}')">更新</button>
-          `;
-          container.appendChild(itemDiv);
-        }
-      });
-    }
-
-    function updateStock(key) {
-      const val = parseInt(document.getElementById(`stock_${key}`).value) || 0;
-      db.ref("stock/" + key).set(val, err => {
-        if (!err) {
-          alert(`${key} 已更新為 ${val}`);
-        } else {
-          alert("更新失敗！");
+          container.innerHTML += `
+            <div class="stock-item">
+              <label>${key}</label>
+              <input type="number" id="stock_${key}" value="${data[key]}" min="0"/>
+              <button onclick="updateStock('${key}')">更新</button>
+            </div>`;
         }
       });
     }
 
     function calculatePrice(order) {
-      const priceList = {
-        main_fried: 50,
-        side_tofu: 20,
-        side_hotdog: 20,
-        drink_sprite: 40,
-        drink_coke: 40
-      };
-
-      let originalPrice = 0;
-      let mainQty = order.main_fried || 0;
-      let sideQty = (order.side_tofu || 0) + (order.side_hotdog || 0);
-      let drinkQty = (order.drink_sprite || 0) + (order.drink_coke || 0);
-
+      let original = 0;
       for (const key in priceList) {
-        originalPrice += (parseInt(order[key]) || 0) * priceList[key];
+        original += (parseInt(order[key]) || 0) * priceList[key];
       }
+      let discount = 0;
+      const hasMain = order.main_fried > 0;
+      const hasSide = (order.side_tofu || 0) + (order.side_hotdog || 0) > 0;
+      const hasDrink = (order.drink_sprite || 0) + (order.drink_coke || 0) > 0;
+      if (hasMain && hasSide && hasDrink) discount += 10;
+      const earlyBird = new Date(order.time) < new Date("2025-06-05");
+      if (earlyBird) discount += 10;
+      return { original, final: original - discount };
+    }
 
-      const comboCount = Math.min(mainQty, sideQty, drinkQty);
-      let discount = comboCount * 10;
+    function saveTags(orderId, tags) {
+      db.ref("orders/" + orderId + "/tags").set(tags);
+    }
 
-      const orderTime = new Date(order.time);
-      const earlyBirdDeadline = new Date("2025-06-05T00:00:00");
-      if (orderTime < earlyBirdDeadline) discount += 10;
-
-      return {
-        originalPrice,
-        finalPrice: originalPrice - discount
-      };
+    function renderTagSummary(tagStats) {
+      const container = document.getElementById("tagSummary");
+      container.innerHTML = "";
+      for (const tag in tagStats) {
+        const { count, amount } = tagStats[tag];
+        container.innerHTML += `<div>🏷️ ${tag}：${count} 筆，總金額 $${amount}</div>`;
+      }
     }
 
     function listenToOrders() {
       db.ref("orders").on("value", snapshot => {
-        const container = document.getElementById("ordersContainer");
-        container.innerHTML = "";
+        const orders = [];
+        const summary = {};
+        const tagStats = {};
+        let totalCount = 0, totalAmount = 0;
+        const ordersContainer = document.getElementById("ordersContainer");
+        ordersContainer.innerHTML = "";
 
         snapshot.forEach(child => {
+          const id = child.key;
           const data = child.val();
-          const prices = calculatePrice(data);
-          const time = new Date(data.time).toLocaleString("zh-TW");
+          orders.push(data);
+          const price = calculatePrice(data);
+          totalCount++;
+          totalAmount += price.final;
 
-          const orderDiv = document.createElement("div");
-          orderDiv.className = "order";
-          orderDiv.innerHTML = `
-            🧑 姓名：${data.name || "未填寫"}<br/>
-            🕒 時間：${time}<br/>
-            🍚 主食：炒米粉 × ${data.main_fried || 0}<br/>
-            🥘 副食：豆干 × ${data.side_tofu || 0}、熱狗 × ${data.side_hotdog || 0}<br/>
-            🥤 飲料：加檸雪碧 × ${data.drink_sprite || 0}、梅子可樂 × ${data.drink_coke || 0}<br/>
-            💰 原價：<del>${prices.originalPrice} 元</del> → ${prices.finalPrice} 元
-          `;
-          container.appendChild(orderDiv);
+          for (const key in priceList) {
+            summary[key] = (summary[key] || 0) + (parseInt(data[key]) || 0);
+          }
+
+          if (data.tags) {
+            data.tags.split(",").map(t => t.trim()).forEach(tag => {
+              if (!tagStats[tag]) tagStats[tag] = { count: 0, amount: 0 };
+              tagStats[tag].count++;
+              tagStats[tag].amount += price.final;
+            });
+          }
+
+          const time = new Date(data.time).toLocaleString("zh-TW");
+          const tagVal = data.tags || "";
+
+          ordersContainer.innerHTML += `
+            <div class="order">
+              🧑 姓名：${data.name || "未填寫"}<br/>
+              🕒 時間：${time}<br/>
+              🍚 主食：炒米粉 × ${data.main_fried || 0}<br/>
+              🥘 副食：豆干 × ${data.side_tofu || 0}、熱狗 × ${data.side_hotdog || 0}<br/>
+              🥤 飲料：加檸雪碧 × ${data.drink_sprite || 0}、梅子可樂 × ${data.drink_coke || 0}<br/>
+              💰 原價：<del>${price.original} 元</del> → ${price.final} 元<br/>
+              <div class="tags">
+                標籤：
+                <input id="tagInput_${id}" value="${tagVal}" />
+                <button onclick="saveTags('${id}', document.getElementById('tagInput_${id}').value)">儲存</button>
+              </div>
+            </div>`;
         });
+
+        // 品項整理
+        const summaryContainer = document.getElementById("summaryContainer");
+        summaryContainer.innerHTML = `<table class="summary-table">
+          <tr><th>品項</th><th>數量</th></tr>
+          ${Object.entries(summary).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}
+        </table>`;
+
+        // 總金額
+        document.getElementById("totalSummary").innerHTML =
+          `訂單筆數：${totalCount}<br/>總金額：$${totalAmount}`;
+
+        renderTagSummary(tagStats);
+        renderCharts(summary);
+      });
+    }
+
+    function renderCharts(summary) {
+      const labels = Object.keys(summary);
+      const values = Object.values(summary);
+      const backgroundColors = ['#4caf50','#2196f3','#ff9800','#e91e63','#9c27b0'];
+
+      new Chart(document.getElementById("barChart"), {
+        type: 'bar',
+        data: {
+          labels, datasets: [{ label: '銷量', data: values, backgroundColor: backgroundColors }]
+        },
+        options: {
+          plugins: { legend: { display: false } },
+          responsive: true
+        }
+      });
+
+      new Chart(document.getElementById("pieChart"), {
+        type: 'pie',
+        data: {
+          labels, datasets: [{ data: values, backgroundColor: backgroundColors }]
+        },
+        options: { responsive: true }
       });
     }
 
