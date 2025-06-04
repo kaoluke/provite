@@ -141,7 +141,7 @@
       const hasSide = (order.side_tofu || 0) + (order.side_hotdog || 0) > 0;
       const hasDrink = (order.drink_sprite || 0) + (order.drink_coke || 0) > 0;
       const orderTime = new Date(order.time);
-      const earlyBirdDeadline = new Date("2025-06-04T00:00:00");
+      const earlyBirdDeadline = new Date("2025-06-05T00:00:00");
 
       if (hasMain && hasSide && hasDrink) discount += 10;
       if (orderTime < earlyBirdDeadline) discount += 10;
